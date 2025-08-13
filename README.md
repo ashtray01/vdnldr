@@ -2,6 +2,14 @@
 
 ---
 
+## 📥 Скачать готовую версию
+
+[![Скачать для Windows](https://img.shields.io/badge/Download-Windows-blue?style=for-the-badge&logo=windows)](https://github.com/RoninOnis/Rutube_download/releases/tag/v1.0.0)
+
+- Работает без установки Python
+- Автономное исполнение
+- Версия: v1.0 (15 МБ)
+
 # Rutube Downloader GUI
 ![Python](https://img.shields.io/badge/Python-3.6%2B-blue?logo=python)
 
