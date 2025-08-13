@@ -78,3 +78,35 @@ python rutube_download.py
 ```python
 # -*- coding: utf-8 -*-
 ```
+
+
+## Terminal версия
+
+Самая простая версия для скачивания видео
+
+Переменные:
+-f "best[height<=1080]" качество видео
+-f "best[filesize<100M]" размер скачиваемого видео
+--limit-rate 5M ограничение скорости скачивания
+
+Убедитесь что установлен:
+   - yt-dlp (`pip show yt-dlp`)
+
+Заменить https://rutube.ru/*******/ на нужное
+```python
+yt-dlp --merge-output-format mp4 "https://rutube.ru/*******/" -o "C:/Path/to/folder/output/%(title)s.%(ext)s"
+```
+
+С указанием качества 1080/720/480/360
+```python
+yt-dlp -f "best[height<=1080]" --merge-output-format mp4 "https://rutube.ru/*******/" -o "C:/Path/to/folder/output/%(title)s.%(ext)s"
+```
+
+
+С указанием размера файла 100М и ограничение скорости в 5М(не рекомендуется иначе будет каша из разного качества видео ИМХО)
+```python
+yt-dlp -f "best[filesize<100M]" --merge-output-format mp4 "https://rutube.ru/*******/" --limit-rate 5M -o "C:/Path/to/folder/output/%(title)s.%(ext)s"
+```
+
+
+
