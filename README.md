@@ -1,4 +1,4 @@
-### README для Rutube Downloader
+### Rutube Downloader
 
 ---
 
