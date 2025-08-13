@@ -8,7 +8,7 @@
 
 - Работает без установки Python
 - Автономное исполнение
-- Версия: v1.0 (15 МБ)
+- Версия: v1.0 (17.8 МБ)
 
 # Rutube Downloader GUI
 ![Python](https://img.shields.io/badge/Python-3.6%2B-blue?logo=python)
