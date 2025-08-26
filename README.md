@@ -124,7 +124,7 @@ pip install pyinstaller
 
 2. Выполните команду сборки:
 ```bash
-pyinstaller --onefile --windowed --icon=icon.ico --name "UniversalDownloader" universal_downloader.py
+pyinstaller --onefile --windowed --icon=icon.ico --name "VideoDownloader" video_downloader.py
 ```
 
 3. EXE-файл будет находиться в папке `dist/`
