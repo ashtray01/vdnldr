@@ -72,8 +72,8 @@ pip install yt-dlp
 
 3. Скачайте или клонируйте репозиторий:
 ```bash
-git clone https://github.com/yourusername/universal-video-downloader.git
-cd universal-video-downloader
+git clone https://github.com/RoninOnis/video_downloader
+cd video_downloader
 ```
 
 ## 🚀 Использование
@@ -82,7 +82,7 @@ cd universal-video-downloader
 
 Запустите приложение:
 ```bash
-python universal_downloader.py
+python video_downloader.py
 ```
 
 #### Интерфейс приложения:
