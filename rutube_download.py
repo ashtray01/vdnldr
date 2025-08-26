@@ -7,12 +7,13 @@ import sys
 import re
 import webbrowser
 
-class RutubeDownloaderApp:
+class UniversalDownloaderApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Rutube Downloader")
+        self.root.title("Universal Video Downloader")
+        # Фиксированная ширина, растягиваемость по вертикали
         self.root.geometry("700x500")
-        self.root.resizable(True, True)
+        self.root.resizable(False, True)
         
         # Стилизация
         self.style = ttk.Style()
@@ -26,29 +27,41 @@ class RutubeDownloaderApp:
         main_frame = ttk.Frame(root, padding=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
+        # Выбор платформы
+        ttk.Label(main_frame, text="Платформа:").grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        self.platform_var = tk.StringVar(value="Автоопределение")
+        platforms = ["Автоопределение", "YouTube", "Rutube", "VK", "Odnoklassniki", "Dzen", "Vimeo", "Twitter", "Instagram", "TikTok"]
+        platform_combo = ttk.Combobox(main_frame, textvariable=self.platform_var, values=platforms, width=20, state="readonly")
+        platform_combo.grid(row=0, column=1, sticky=tk.W, pady=(0, 5), padx=(10, 0))
+        platform_combo.bind("<<ComboboxSelected>>", self.on_platform_change)
+        
         # Поле для URL
-        ttk.Label(main_frame, text="URL видео или плейлиста Rutube:").grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        ttk.Label(main_frame, text="URL видео или плейлиста:").grid(row=1, column=0, sticky=tk.W, pady=(5, 5))
         self.url_entry = ttk.Entry(main_frame, width=70)
-        self.url_entry.grid(row=1, column=0, columnspan=2, sticky=tk.EW, pady=(0, 10))
-        self.url_entry.insert(0, "https://rutube.ru/")
+        self.url_entry.grid(row=2, column=0, columnspan=2, sticky=tk.EW, pady=(0, 10))
+        self.url_entry.insert(0, "https://")
         
         # Примеры ссылок
         examples_frame = ttk.Frame(main_frame)
-        examples_frame.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
+        examples_frame.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
         ttk.Label(examples_frame, text="Примеры:", foreground="gray").pack(side=tk.LEFT)
         
-        # Кнопки примеров
-        example1 = ttk.Button(examples_frame, text="Видео", width=8, 
-                              command=lambda: self.url_entry.insert(tk.END, "https://rutube.ru/video/"))
-        example1.pack(side=tk.LEFT, padx=5)
+        # Кнопки примеров для разных платформ
+        examples = [
+            ("YouTube", "https://youtube.com/"),
+            ("Rutube", "https://rutube.ru/"),
+            ("VK", "https://vk.com/"),
+            ("OK", "https://ok.ru/")
+        ]
         
-        example2 = ttk.Button(examples_frame, text="Плейлист", width=8,
-                              command=lambda: self.url_entry.insert(tk.END, "https://rutube.ru/plst/"))
-        example2.pack(side=tk.LEFT, padx=5)
+        for text, url in examples:
+            btn = ttk.Button(examples_frame, text=text, width=8, 
+                            command=lambda u=url: self.url_entry.insert(tk.END, u))
+            btn.pack(side=tk.LEFT, padx=5)
         
         # Настройки загрузки
         settings_frame = ttk.Frame(main_frame)
-        settings_frame.grid(row=3, column=0, columnspan=2, sticky=tk.EW, pady=(0, 15))
+        settings_frame.grid(row=4, column=0, columnspan=2, sticky=tk.EW, pady=(0, 15))
         
         # Качество видео
         ttk.Label(settings_frame, text="Качество видео:").grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
@@ -67,10 +80,10 @@ class RutubeDownloaderApp:
         speed_combo.grid(row=0, column=3, sticky=tk.W)
         
         # Выбор папки
-        ttk.Label(main_frame, text="Папка для сохранения:").grid(row=4, column=0, sticky=tk.W, pady=(0, 5))
+        ttk.Label(main_frame, text="Папка для сохранения:").grid(row=5, column=0, sticky=tk.W, pady=(0, 5))
         self.folder_var = tk.StringVar(value=os.path.join(os.path.expanduser("~"), "Downloads"))
         folder_frame = ttk.Frame(main_frame)
-        folder_frame.grid(row=5, column=0, columnspan=2, sticky=tk.EW)
+        folder_frame.grid(row=6, column=0, columnspan=2, sticky=tk.EW)
         
         self.folder_entry = ttk.Entry(folder_frame, textvariable=self.folder_var, width=60)
         self.folder_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -79,10 +92,10 @@ class RutubeDownloaderApp:
         browse_btn.pack(side=tk.RIGHT, padx=(5, 0))
         
         # Формат имени файла
-        ttk.Label(main_frame, text="Формат имени файла:").grid(row=6, column=0, sticky=tk.W, pady=(10, 5))
+        ttk.Label(main_frame, text="Формат имени файла:").grid(row=7, column=0, sticky=tk.W, pady=(10, 5))
         self.name_format_var = tk.StringVar(value="%(title)s.%(ext)s")
         name_frame = ttk.Frame(main_frame)
-        name_frame.grid(row=7, column=0, columnspan=2, sticky=tk.EW, pady=(0, 10))
+        name_frame.grid(row=8, column=0, columnspan=2, sticky=tk.EW, pady=(0, 10))
         
         name_combo = ttk.Combobox(name_frame, textvariable=self.name_format_var, 
                                  values=["%(title)s.%(ext)s", "%(id)s.%(ext)s", "%(upload_date)s_%(title)s.%(ext)s"],
@@ -90,14 +103,14 @@ class RutubeDownloaderApp:
         name_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         # Логгирование
-        ttk.Label(main_frame, text="Лог выполнения:").grid(row=8, column=0, sticky=tk.W, pady=(5, 5))
+        ttk.Label(main_frame, text="Лог выполнения:").grid(row=9, column=0, sticky=tk.W, pady=(5, 5))
         self.log_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, width=85, height=12)
-        self.log_text.grid(row=9, column=0, columnspan=2, sticky=tk.NSEW)
+        self.log_text.grid(row=10, column=0, columnspan=2, sticky=tk.NSEW)
         self.log_text.config(state=tk.DISABLED, font=("Consolas", 9))
         
         # Кнопки управления
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=10, column=0, columnspan=2, pady=(10, 0))
+        btn_frame.grid(row=11, column=0, columnspan=2, pady=(10, 0))
         
         self.download_btn = ttk.Button(btn_frame, text="Начать скачивание", command=self.start_download)
         self.download_btn.pack(side=tk.LEFT, padx=5)
@@ -121,12 +134,31 @@ class RutubeDownloaderApp:
         self.download_process = None
         self.is_downloading = False
         
+        # Настройка веса строк для растягивания
+        main_frame.grid_rowconfigure(10, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+        
         # Проверка зависимостей
         self.check_dependencies()
         
-        # Настройка веса строк
-        main_frame.grid_rowconfigure(9, weight=1)
+    def on_platform_change(self, event):
+        platform = self.platform_var.get()
+        example_urls = {
+            "YouTube": "https://www.youtube.com/",
+            "Rutube": "https://rutube.ru/video/",
+            "VK": "https://vk.com/",
+            "Odnoklassniki": "https://ok.ru/video/",
+            "Dzen": "https://dzen.ru/video/watch/",
+            "Vimeo": "https://vimeo.com/",
+            "Twitter": "https://twitter.com/user/status/",
+            "Instagram": "https://www.instagram.com/p/",
+            "TikTok": "https://www.tiktok.com/@user/video/"
+        }
         
+        if platform != "Автоопределение" and platform in example_urls:
+            self.url_entry.delete(0, tk.END)
+            self.url_entry.insert(0, example_urls[platform])
+    
     def browse_folder(self):
         folder_selected = filedialog.askdirectory(initialdir=self.folder_var.get())
         if folder_selected:
@@ -146,17 +178,30 @@ class RutubeDownloaderApp:
     
     def show_help(self):
         help_text = """
-        Инструкция по использованию:
+        Universal Video Downloader - инструкция по использованию:
         
-        1. Вставьте ссылку на видео или плейлист Rutube
-        2. Выберите качество видео (по умолчанию 720p)
-        3. При необходимости установите ограничение скорости
-        4. Выберите папку для сохранения файлов
-        5. Нажмите "Начать скачивание"
+        1. Выберите платформу или оставьте "Автоопределение"
+        2. Вставьте ссылку на видео или плейлист
+        3. Выберите качество видео (по умолчанию 720p)
+        4. При необходимости установите ограничение скорости
+        5. Выберите папку для сохранения файлов
+        6. Нажмите "Начать скачивание"
+        
+        Поддерживаемые платформы:
+        - YouTube
+        - Rutube
+        - VK (ВКонтакте)
+        - Odnoklassniki (Одноклассники)
+        - Dzen (Дзен)
+        - Vimeo
+        - Twitter
+        - Instagram
+        - TikTok
+        - И многие другие через автоопределение
         
         Советы:
         - Для плейлистов создается подпапка с названием плейлиста
-        - Можно использовать кнопки "Видео" и "Плейлист" для примеров ссылок
+        - Используйте кнопки примеров для быстрой вставки ссылок
         - Формат имени файла можно изменить в выпадающем списке
         
         Требования:
@@ -171,25 +216,28 @@ class RutubeDownloaderApp:
         
         # Проверка yt-dlp
         try:
-            subprocess.run(["yt-dlp", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.log_message("✅ yt-dlp установлен")
+            result = subprocess.run(["yt-dlp", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            self.log_message(f"✅ yt-dlp установлен (версия: {result.stdout.strip()})")
         except:
             self.log_message("❌ yt-dlp не найден! Попытка установки...")
             try:
-                subprocess.run([sys.executable, "-m", "pip", "install", "yt-dlp"], check=True)
+                subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"], check=True)
                 self.log_message("✅ yt-dlp успешно установлен!")
             except:
                 self.log_message("❌ Ошибка установки yt-dlp. Установите вручную: pip install yt-dlp")
         
         # Проверка ffmpeg
         try:
-            subprocess.run(["ffmpeg", "-version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.log_message("✅ ffmpeg установлен")
+            result = subprocess.run(["ffmpeg", "-version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            # Получаем первую строку вывода для отображения версии
+            first_line = result.stdout.split('\n')[0] if result.stdout else "unknown version"
+            self.log_message(f"✅ ffmpeg установлен ({first_line})")
         except:
             self.log_message("❌ ffmpeg не найден! Установите вручную:")
             self.log_message("1. Скачайте: https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z")
             self.log_message("2. Распакуйте в C:\\ffmpeg")
             self.log_message("3. Добавьте C:\\ffmpeg\\bin в переменную PATH")
+            self.log_message("4. Перезапустите программу")
         
         self.log_message("\nПроверка завершена. Введите параметры и нажмите 'Начать скачивание'")
     
@@ -199,11 +247,12 @@ class RutubeDownloaderApp:
             
         content_url = self.url_entry.get().strip()
         if not content_url:
-            messagebox.showerror("Ошибка", "Введите URL видео или плейлиста Rutube")
+            messagebox.showerror("Ошибка", "Введите URL видео или плейлиста")
             return
             
-        if not re.match(r'^https?://rutube\.ru/(video|plst|play)/', content_url):
-            messagebox.showerror("Ошибка", "Некорректный URL Rutube.\nПримеры:\n- Видео: https://rutube.ru/video/.../\n- Плейлист: https://rutube.ru/plst/.../")
+        # Общая проверка URL (любой HTTP/HTTPS)
+        if not re.match(r'^https?://', content_url):
+            messagebox.showerror("Ошибка", "Некорректный URL. Должен начинаться с http:// или https://")
             return
             
         quality = self.quality_var.get().split()[0] if self.quality_var.get() != "Авто" else "best"
@@ -244,13 +293,21 @@ class RutubeDownloaderApp:
             command.insert(2, speed_limit)
         
         # Для плейлистов создаем подпапку
-        if "/plst/" in content_url or "/play/" in content_url:
+        if any(x in content_url for x in ["/playlist/", "/plst/", "list="]):
             command.insert(1, "-o")
             command.insert(2, os.path.join(output_folder, "%(playlist_title)s", name_format))
         
+        # Специфичные настройки для разных платформ
+        platform = self.platform_var.get()
+        if platform != "Автоопределение":
+            if platform == "Instagram":
+                command.insert(1, "--cookies")
+                command.insert(2, "cookies.txt")  # Instagram часто требует cookies
+                self.log_message("⚠ Для Instagram могут потребоваться cookies в файле cookies.txt")
+        
         self.log_message("\n" + "="*80)
         self.log_message(f"Начало скачивания: {content_url}")
-        self.log_message(f"Тип: {'Плейлист' if '/plst/' in content_url or '/play/' in content_url else 'Видео'}")
+        self.log_message(f"Платформа: {platform}")
         self.log_message(f"Качество: {'Авто' if quality == 'best' else f'до {quality}p'}")
         self.log_message(f"Папка сохранения: {output_folder}")
         self.log_message(f"Ограничение скорости: {speed_limit if speed_limit != 'Без ограничений' else 'Нет'}")
@@ -275,7 +332,9 @@ class RutubeDownloaderApp:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
+                encoding='utf-8',
+                errors='replace'
             )
             
             # Чтение вывода в реальном времени
@@ -313,5 +372,5 @@ class RutubeDownloaderApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = RutubeDownloaderApp(root)
+    app = UniversalDownloaderApp(root)
     root.mainloop()
