@@ -6,14 +6,27 @@ import os
 import sys
 import re
 import webbrowser
+import socket
+import tempfile
+import shutil
+from pathlib import Path
+import io
+import contextlib
 
 class UniversalDownloaderApp:
     def __init__(self, root):
+        # Проверка на уже запущенный экземпляр
+        if self.is_already_running():
+            messagebox.showerror("Ошибка", "Программа уже запущена!")
+            sys.exit(1)
+            
         self.root = root
         self.root.title("Universal Video Downloader")
-        # Фиксированная ширина, растягиваемость по вертикали
         self.root.geometry("700x500")
         self.root.resizable(False, True)
+        
+        # Обработчик закрытия окна
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Стилизация
         self.style = ttk.Style()
@@ -46,7 +59,6 @@ class UniversalDownloaderApp:
         examples_frame.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
         ttk.Label(examples_frame, text="Примеры:", foreground="gray").pack(side=tk.LEFT)
         
-        # Кнопки примеров для разных платформ
         examples = [
             ("YouTube", "https://youtube.com/"),
             ("Rutube", "https://rutube.ru/"),
@@ -133,14 +145,85 @@ class UniversalDownloaderApp:
         # Переменные для управления потоком
         self.download_process = None
         self.is_downloading = False
+        self.is_closing = False
+        self.use_python_module = False
+        
+        # Временные файлы
+        self.temp_dir = None
         
         # Настройка веса строк для растягивания
         main_frame.grid_rowconfigure(10, weight=1)
         main_frame.columnconfigure(1, weight=1)
         
-        # Проверка зависимостей
-        self.check_dependencies()
+        # Автоматическая настройка
+        self.setup_environment()
+    
+    def setup_environment(self):
+        """Автоматическая настройка окружения"""
+        self.log_message("[INFO] Настройка окружения...")
         
+        try:
+            # Создаем временную директорию
+            self.temp_dir = tempfile.mkdtemp(prefix="universal_downloader_")
+            self.log_message(f"[INFO] Временная папка: {self.temp_dir}")
+            
+            # Настраиваем yt-dlp
+            self.setup_yt_dlp()
+            
+            self.log_message("[OK] Окружение настроено успешно!")
+            self.status_var.set("Готов к работе")
+            
+        except Exception as e:
+            self.log_message(f"[ERROR] Ошибка настройки: {str(e)}")
+            self.status_var.set("Ошибка настройки")
+    
+    def setup_yt_dlp(self):
+        """Настраивает yt-dlp для работы внутри EXE"""
+        try:
+            # Пытаемся импортировать yt-dlp напрямую
+            import yt_dlp
+            self.log_message("[OK] yt-dlp доступен через Python")
+            self.use_python_module = True
+        except ImportError:
+            self.log_message("[ERROR] yt-dlp не найден!")
+            self.use_python_module = False
+            messagebox.showerror("Ошибка", "yt-dlp не установлен! Программа не может работать.")
+    
+    def is_already_running(self):
+        """Проверяет, запущена ли уже программа"""
+        try:
+            lock_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            lock_socket.bind(('127.0.0.1', 47291))
+            return False
+        except socket.error:
+            return True
+    
+    def on_closing(self):
+        """Обработчик закрытия окна"""
+        if self.is_downloading:
+            if messagebox.askyesno("Подтверждение", 
+                                  "Идет процесс скачивания. Вы уверены, что хотите выйти?"):
+                self.is_closing = True
+                self.stop_download()
+                self.root.after(100, self.force_quit)
+        else:
+            self.cleanup()
+            self.root.destroy()
+    
+    def cleanup(self):
+        """Очистка временных файлов"""
+        try:
+            if self.temp_dir and os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir)
+                self.log_message("[INFO] Временные файлы очищены")
+        except:
+            pass
+    
+    def force_quit(self):
+        """Принудительное завершение"""
+        self.cleanup()
+        self.root.destroy()
+    
     def on_platform_change(self, event):
         platform = self.platform_var.get()
         example_urls = {
@@ -165,6 +248,9 @@ class UniversalDownloaderApp:
             self.folder_var.set(folder_selected)
     
     def log_message(self, message):
+        if self.is_closing:
+            return
+            
         self.log_text.config(state=tk.NORMAL)
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.see(tk.END)
@@ -187,59 +273,9 @@ class UniversalDownloaderApp:
         5. Выберите папку для сохранения файлов
         6. Нажмите "Начать скачивание"
         
-        Поддерживаемые платформы:
-        - YouTube
-        - Rutube
-        - VK (ВКонтакте)
-        - Odnoklassniki (Одноклассники)
-        - Dzen (Дзен)
-        - Vimeo
-        - Twitter
-        - Instagram
-        - TikTok
-        - И многие другие через автоопределение
-        
-        Советы:
-        - Для плейлистов создается подпапка с названием плейлиста
-        - Используйте кнопки примеров для быстрой вставки ссылок
-        - Формат имени файла можно изменить в выпадающем списке
-        
-        Требования:
-        - Установленный Python 3.6+
-        - Установленные yt-dlp и ffmpeg
-        - Интернет-соединение
+        Все зависимости устанавливаются автоматически!
         """
         messagebox.showinfo("Помощь", help_text)
-    
-    def check_dependencies(self):
-        self.log_message("Проверка зависимостей...")
-        
-        # Проверка yt-dlp
-        try:
-            result = subprocess.run(["yt-dlp", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            self.log_message(f"✅ yt-dlp установлен (версия: {result.stdout.strip()})")
-        except:
-            self.log_message("❌ yt-dlp не найден! Попытка установки...")
-            try:
-                subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"], check=True)
-                self.log_message("✅ yt-dlp успешно установлен!")
-            except:
-                self.log_message("❌ Ошибка установки yt-dlp. Установите вручную: pip install yt-dlp")
-        
-        # Проверка ffmpeg
-        try:
-            result = subprocess.run(["ffmpeg", "-version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            # Получаем первую строку вывода для отображения версии
-            first_line = result.stdout.split('\n')[0] if result.stdout else "unknown version"
-            self.log_message(f"✅ ffmpeg установлен ({first_line})")
-        except:
-            self.log_message("❌ ffmpeg не найден! Установите вручную:")
-            self.log_message("1. Скачайте: https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z")
-            self.log_message("2. Распакуйте в C:\\ffmpeg")
-            self.log_message("3. Добавьте C:\\ffmpeg\\bin в переменную PATH")
-            self.log_message("4. Перезапустите программу")
-        
-        self.log_message("\nПроверка завершена. Введите параметры и нажмите 'Начать скачивание'")
     
     def start_download(self):
         if self.is_downloading:
@@ -250,15 +286,15 @@ class UniversalDownloaderApp:
             messagebox.showerror("Ошибка", "Введите URL видео или плейлиста")
             return
             
-        # Общая проверка URL (любой HTTP/HTTPS)
         if not re.match(r'^https?://', content_url):
             messagebox.showerror("Ошибка", "Некорректный URL. Должен начинаться с http:// или https://")
             return
             
-        quality = self.quality_var.get().split()[0] if self.quality_var.get() != "Авто" else "best"
-        speed_limit = self.speed_var.get()
+        if not self.use_python_module:
+            messagebox.showerror("Ошибка", "yt-dlp не доступен! Переустановите приложение.")
+            return
+
         output_folder = self.folder_var.get()
-        name_format = self.name_format_var.get()
         
         if not os.path.exists(output_folder):
             try:
@@ -267,52 +303,12 @@ class UniversalDownloaderApp:
                 messagebox.showerror("Ошибка", f"Невозможно создать папку: {output_folder}")
                 return
         
-        # Формирование команды
-        command = [
-            "yt-dlp",
-            "--merge-output-format", "mp4",
-            "--hls-prefer-ffmpeg",
-            "--postprocessor-args", "ffmpeg:-c copy -movflags +faststart",
-            "--ignore-errors",
-            "--retries", "10",
-            "--fragment-retries", "10",
-            "--concurrent-fragments", "4",
-            "--sleep-interval", "5",
-            "-o", os.path.join(output_folder, name_format),
-            content_url
-        ]
-        
-        # Добавляем качество, если не авто
-        if quality != "best":
-            command.insert(1, "-f")
-            command.insert(2, f"best[height<={quality}]")
-        
-        # Добавляем ограничение скорости, если выбрано
-        if speed_limit != "Без ограничений":
-            command.insert(1, "--limit-rate")
-            command.insert(2, speed_limit)
-        
-        # Для плейлистов создаем подпапку
-        if any(x in content_url for x in ["/playlist/", "/plst/", "list="]):
-            command.insert(1, "-o")
-            command.insert(2, os.path.join(output_folder, "%(playlist_title)s", name_format))
-        
-        # Специфичные настройки для разных платформ
-        platform = self.platform_var.get()
-        if platform != "Автоопределение":
-            if platform == "Instagram":
-                command.insert(1, "--cookies")
-                command.insert(2, "cookies.txt")  # Instagram часто требует cookies
-                self.log_message("⚠ Для Instagram могут потребоваться cookies в файле cookies.txt")
-        
         self.log_message("\n" + "="*80)
         self.log_message(f"Начало скачивания: {content_url}")
-        self.log_message(f"Платформа: {platform}")
-        self.log_message(f"Качество: {'Авто' if quality == 'best' else f'до {quality}p'}")
+        self.log_message(f"Качество: {'Авто' if self.quality_var.get() == 'Авто' else self.quality_var.get()}")
         self.log_message(f"Папка сохранения: {output_folder}")
-        self.log_message(f"Ограничение скорости: {speed_limit if speed_limit != 'Без ограничений' else 'Нет'}")
-        self.log_message(f"Формат имени: {name_format}")
-        self.log_message("Команда: " + " ".join(command))
+        self.log_message(f"Ограничение скорости: {self.speed_var.get()}")
+        self.log_message(f"Формат имени: {self.name_format_var.get()}")
         self.log_message("="*80 + "\n")
         
         # Обновление интерфейса
@@ -322,53 +318,116 @@ class UniversalDownloaderApp:
         self.status_var.set("Скачивание началось...")
         
         # Запуск в отдельном потоке
-        threading.Thread(target=self.run_download, args=(command,), daemon=True).start()
+        threading.Thread(target=self.run_download, args=(content_url,), daemon=True).start()
     
-    def run_download(self, command):
+    def run_download(self, content_url):
+        """Запускает скачивание используя Python модуль напрямую"""
         try:
-            self.download_process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                encoding='utf-8',
-                errors='replace'
-            )
-            
-            # Чтение вывода в реальном времени
-            for line in self.download_process.stdout:
-                self.root.after(0, self.log_message, line.strip())
+            if not self.use_python_module:
+                self.log_message("[ERROR] yt-dlp не доступен!")
+                self.root.after(0, self.download_complete)
+                return
                 
-            self.download_process.wait()
+            # Импортируем yt-dlp
+            import yt_dlp
             
-            if self.download_process.returncode == 0:
-                self.root.after(0, self.log_message, "\n✅ Скачивание успешно завершено!")
-                self.root.after(0, self.status_var.set, "Скачивание завершено успешно")
-            else:
-                self.root.after(0, self.log_message, f"\n❌ Ошибка скачивания (код: {self.download_process.returncode})")
-                self.root.after(0, self.status_var.set, "Ошибка скачивания")
+            # Перенаправляем stdout для захвата вывода
+            output_capture = io.StringIO()
+            
+            def download_with_redirect():
+                try:
+                    with contextlib.redirect_stdout(output_capture):
+                        with contextlib.redirect_stderr(output_capture):
+                            # Создаем опции для yt-dlp
+                            ydl_opts = {
+                                'outtmpl': os.path.join(self.folder_var.get(), self.name_format_var.get()),
+                                'merge_output_format': 'mp4',
+                                'ignoreerrors': True,
+                                'retries': 10,
+                                'fragment_retries': 10,
+                                'concurrent_fragments': 4,
+                                'sleep_interval': 5,
+                                'quiet': False,
+                                'no_warnings': False,
+                            }
+                            
+                            # Добавляем качество
+                            quality = self.quality_var.get().split()[0] if self.quality_var.get() != "Авто" else "best"
+                            if quality != "best":
+                                ydl_opts['format'] = f'best[height<={quality}]'
+                            
+                            # Добавляем ограничение скорости
+                            speed_limit = self.speed_var.get()
+                            if speed_limit != "Без ограничений":
+                                # Конвертируем в байты в секунду
+                                if 'M' in speed_limit:
+                                    rate_limit = int(speed_limit.replace('M', '')) * 1000000
+                                elif 'K' in speed_limit:
+                                    rate_limit = int(speed_limit.replace('K', '')) * 1000
+                                else:
+                                    rate_limit = int(speed_limit)
+                                ydl_opts['ratelimit'] = rate_limit
+                            
+                            # Для плейлистов
+                            if any(x in content_url for x in ["/playlist/", "/plst/", "list="]):
+                                ydl_opts['outtmpl'] = os.path.join(
+                                    self.folder_var.get(), 
+                                    '%(playlist_title)s', 
+                                    self.name_format_var.get()
+                                )
+                            
+                            # Запускаем скачивание
+                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                ydl.download([content_url])
+                                
+                except Exception as e:
+                    output_capture.write(f"\n[ERROR] Критическая ошибка: {str(e)}\n")
+                finally:
+                    # Сигнализируем о завершении
+                    if not self.is_closing:
+                        self.root.after(0, self.download_complete)
+            
+            # Запускаем в отдельном потоке
+            download_thread = threading.Thread(target=download_with_redirect, daemon=True)
+            download_thread.start()
+            
+            # Мониторим вывод в реальном времени
+            while self.is_downloading and not self.is_closing:
+                try:
+                    output = output_capture.getvalue()
+                    if output:
+                        lines = output.split('\n')
+                        for line in lines:
+                            if line.strip() and not self.is_closing:
+                                self.root.after(0, self.log_message, line.strip())
+                        # Очищаем буфер после чтения
+                        output_capture.seek(0)
+                        output_capture.truncate(0)
+                except Exception as e:
+                    self.log_message(f"[ERROR] Ошибка чтения вывода: {str(e)}")
                 
+                # Проверяем, жив ли поток
+                if download_thread.is_alive():
+                    threading.Event().wait(0.1)
+                else:
+                    break
+                    
         except Exception as e:
-            self.root.after(0, self.log_message, f"\n❌ Критическая ошибка: {str(e)}")
-            self.root.after(0, self.status_var.set, "Критическая ошибка")
-            
-        finally:
-            self.root.after(0, self.download_complete)
-    
+            if not self.is_closing:
+                self.log_message(f"[ERROR] Ошибка запуска: {str(e)}")
+                self.root.after(0, self.download_complete)
+
     def stop_download(self):
-        if self.is_downloading and self.download_process:
-            self.download_process.terminate()
-            self.log_message("\n⛔ Скачивание принудительно остановлено пользователем")
+        if self.is_downloading:
+            self.log_message("\n[STOP] Скачивание принудительно остановлено пользователем")
             self.status_var.set("Скачивание остановлено")
+            self.is_downloading = False
             self.download_complete()
-    
+
     def download_complete(self):
         self.is_downloading = False
         self.download_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
-        self.download_process = None
 
 if __name__ == "__main__":
     root = tk.Tk()
