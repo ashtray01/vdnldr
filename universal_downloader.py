@@ -54,6 +54,10 @@ class UniversalDownloaderApp:
         self.url_entry.grid(row=2, column=0, columnspan=2, sticky=tk.EW, pady=(0, 10))
         self.url_entry.insert(0, "https://")
         
+        # Добавляем обработчики событий для улучшения UX
+        self.url_entry.bind('<Button-1>', self.on_url_entry_click)
+        self.url_entry.bind('<FocusIn>', self.on_url_entry_focus)
+        
         # Примеры ссылок
         examples_frame = ttk.Frame(main_frame)
         examples_frame.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
@@ -68,7 +72,7 @@ class UniversalDownloaderApp:
         
         for text, url in examples:
             btn = ttk.Button(examples_frame, text=text, width=8, 
-                            command=lambda u=url: self.url_entry.insert(tk.END, u))
+                            command=lambda u=url: self.insert_url_example(u))
             btn.pack(side=tk.LEFT, padx=5)
         
         # Настройки загрузки
@@ -158,6 +162,22 @@ class UniversalDownloaderApp:
         # Автоматическая настройка
         self.setup_environment()
     
+    def insert_url_example(self, url):
+        """Безопасная вставка примера URL с очисткой поля"""
+        self.url_entry.delete(0, tk.END)
+        self.url_entry.insert(0, url)
+        self.url_entry.focus_set()
+        self.url_entry.select_range(0, tk.END)
+    
+    def on_url_entry_click(self, event):
+        """Обработчик клика по полю URL"""
+        if self.url_entry.get() == "https://":
+            self.url_entry.select_range(0, tk.END)
+    
+    def on_url_entry_focus(self, event):
+        """Обработчик получения фокуса полем URL"""
+        self.url_entry.select_range(0, tk.END)
+    
     def setup_environment(self):
         """Автоматическая настройка окружения"""
         self.log_message("[INFO] Настройка окружения...")
@@ -180,7 +200,6 @@ class UniversalDownloaderApp:
     def setup_yt_dlp(self):
         """Настраивает yt-dlp для работы внутри EXE"""
         try:
-            # Пытаемся импортировать yt-dlp напрямую
             import yt_dlp
             self.log_message("[OK] yt-dlp доступен через Python")
             self.use_python_module = True
@@ -239,8 +258,7 @@ class UniversalDownloaderApp:
         }
         
         if platform != "Автоопределение" and platform in example_urls:
-            self.url_entry.delete(0, tk.END)
-            self.url_entry.insert(0, example_urls[platform])
+            self.insert_url_example(example_urls[platform])
     
     def browse_folder(self):
         folder_selected = filedialog.askdirectory(initialdir=self.folder_var.get())
@@ -282,12 +300,16 @@ class UniversalDownloaderApp:
             return
             
         content_url = self.url_entry.get().strip()
-        if not content_url:
+        
+        if not content_url or content_url == "https://":
             messagebox.showerror("Ошибка", "Введите URL видео или плейлиста")
+            self.url_entry.focus_set()
             return
             
         if not re.match(r'^https?://', content_url):
             messagebox.showerror("Ошибка", "Некорректный URL. Должен начинаться с http:// или https://")
+            self.url_entry.focus_set()
+            self.url_entry.select_range(0, tk.END)
             return
             
         if not self.use_python_module:
@@ -311,34 +333,28 @@ class UniversalDownloaderApp:
         self.log_message(f"Формат имени: {self.name_format_var.get()}")
         self.log_message("="*80 + "\n")
         
-        # Обновление интерфейса
         self.download_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
         self.is_downloading = True
         self.status_var.set("Скачивание началось...")
         
-        # Запуск в отдельном потоке
         threading.Thread(target=self.run_download, args=(content_url,), daemon=True).start()
     
     def run_download(self, content_url):
-        """Запускает скачивание используя Python модуль напрямую"""
         try:
             if not self.use_python_module:
                 self.log_message("[ERROR] yt-dlp не доступен!")
                 self.root.after(0, self.download_complete)
                 return
                 
-            # Импортируем yt-dlp
             import yt_dlp
             
-            # Перенаправляем stdout для захвата вывода
             output_capture = io.StringIO()
             
             def download_with_redirect():
                 try:
                     with contextlib.redirect_stdout(output_capture):
                         with contextlib.redirect_stderr(output_capture):
-                            # Создаем опции для yt-dlp
                             ydl_opts = {
                                 'outtmpl': os.path.join(self.folder_var.get(), self.name_format_var.get()),
                                 'merge_output_format': 'mp4',
@@ -351,15 +367,12 @@ class UniversalDownloaderApp:
                                 'no_warnings': False,
                             }
                             
-                            # Добавляем качество
                             quality = self.quality_var.get().split()[0] if self.quality_var.get() != "Авто" else "best"
                             if quality != "best":
                                 ydl_opts['format'] = f'best[height<={quality}]'
                             
-                            # Добавляем ограничение скорости
                             speed_limit = self.speed_var.get()
                             if speed_limit != "Без ограничений":
-                                # Конвертируем в байты в секунду
                                 if 'M' in speed_limit:
                                     rate_limit = int(speed_limit.replace('M', '')) * 1000000
                                 elif 'K' in speed_limit:
@@ -368,7 +381,6 @@ class UniversalDownloaderApp:
                                     rate_limit = int(speed_limit)
                                 ydl_opts['ratelimit'] = rate_limit
                             
-                            # Для плейлистов
                             if any(x in content_url for x in ["/playlist/", "/plst/", "list="]):
                                 ydl_opts['outtmpl'] = os.path.join(
                                     self.folder_var.get(), 
@@ -376,22 +388,18 @@ class UniversalDownloaderApp:
                                     self.name_format_var.get()
                                 )
                             
-                            # Запускаем скачивание
                             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                                 ydl.download([content_url])
                                 
                 except Exception as e:
                     output_capture.write(f"\n[ERROR] Критическая ошибка: {str(e)}\n")
                 finally:
-                    # Сигнализируем о завершении
                     if not self.is_closing:
                         self.root.after(0, self.download_complete)
             
-            # Запускаем в отдельном потоке
             download_thread = threading.Thread(target=download_with_redirect, daemon=True)
             download_thread.start()
             
-            # Мониторим вывод в реальном времени
             while self.is_downloading and not self.is_closing:
                 try:
                     output = output_capture.getvalue()
@@ -400,13 +408,11 @@ class UniversalDownloaderApp:
                         for line in lines:
                             if line.strip() and not self.is_closing:
                                 self.root.after(0, self.log_message, line.strip())
-                        # Очищаем буфер после чтения
                         output_capture.seek(0)
                         output_capture.truncate(0)
                 except Exception as e:
                     self.log_message(f"[ERROR] Ошибка чтения вывода: {str(e)}")
                 
-                # Проверяем, жив ли поток
                 if download_thread.is_alive():
                     threading.Event().wait(0.1)
                 else:
