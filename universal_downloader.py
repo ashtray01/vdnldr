@@ -58,22 +58,15 @@ class UniversalDownloaderApp:
         self.url_entry.bind('<Button-1>', self.on_url_entry_click)
         self.url_entry.bind('<FocusIn>', self.on_url_entry_focus)
         
-        # Примеры ссылок
-        examples_frame = ttk.Frame(main_frame)
-        examples_frame.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
-        ttk.Label(examples_frame, text="Примеры:", foreground="gray").pack(side=tk.LEFT)
+        # Кнопка для вставки ссылки из буфера обмена
+        paste_frame = ttk.Frame(main_frame)
+        paste_frame.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
         
-        examples = [
-            ("YouTube", "https://youtube.com/"),
-            ("Rutube", "https://rutube.ru/"),
-            ("VK", "https://vk.com/"),
-            ("OK", "https://ok.ru/")
-        ]
+        paste_btn = ttk.Button(paste_frame, text="Вставить ссылку", command=self.paste_from_clipboard)
+        paste_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        for text, url in examples:
-            btn = ttk.Button(examples_frame, text=text, width=8, 
-                            command=lambda u=url: self.insert_url_example(u))
-            btn.pack(side=tk.LEFT, padx=5)
+        clear_btn = ttk.Button(paste_frame, text="Очистить", command=self.clear_url)
+        clear_btn.pack(side=tk.LEFT)
         
         # Настройки загрузки
         settings_frame = ttk.Frame(main_frame)
@@ -134,8 +127,8 @@ class UniversalDownloaderApp:
         self.stop_btn = ttk.Button(btn_frame, text="Остановить", command=self.stop_download, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT, padx=5)
         
-        self.clear_btn = ttk.Button(btn_frame, text="Очистить лог", command=self.clear_log)
-        self.clear_btn.pack(side=tk.LEFT, padx=5)
+        self.clear_log_btn = ttk.Button(btn_frame, text="Очистить лог", command=self.clear_log)
+        self.clear_log_btn.pack(side=tk.LEFT, padx=5)
         
         # Кнопка помощи
         help_btn = ttk.Button(btn_frame, text="Помощь", command=self.show_help)
@@ -162,10 +155,21 @@ class UniversalDownloaderApp:
         # Автоматическая настройка
         self.setup_environment()
     
-    def insert_url_example(self, url):
-        """Безопасная вставка примера URL с очисткой поля"""
+    def paste_from_clipboard(self):
+        """Вставка ссылки из буфера обмена"""
+        try:
+            clipboard_content = self.root.clipboard_get()
+            if clipboard_content.strip():
+                self.url_entry.delete(0, tk.END)
+                self.url_entry.insert(0, clipboard_content)
+                self.log_message("[INFO] Ссылка вставлена из буфера обмена")
+        except:
+            self.log_message("[WARNING] Не удалось вставить из буфера обмена")
+    
+    def clear_url(self):
+        """Очистка поля URL"""
         self.url_entry.delete(0, tk.END)
-        self.url_entry.insert(0, url)
+        self.url_entry.insert(0, "https://")
         self.url_entry.focus_set()
         self.url_entry.select_range(0, tk.END)
     
@@ -176,7 +180,8 @@ class UniversalDownloaderApp:
     
     def on_url_entry_focus(self, event):
         """Обработчик получения фокуса полем URL"""
-        self.url_entry.select_range(0, tk.END)
+        if self.url_entry.get() == "https://":
+            self.url_entry.select_range(0, tk.END)
     
     def setup_environment(self):
         """Автоматическая настройка окружения"""
@@ -244,21 +249,10 @@ class UniversalDownloaderApp:
         self.root.destroy()
     
     def on_platform_change(self, event):
+        """Обработчик изменения выбранной платформы"""
         platform = self.platform_var.get()
-        example_urls = {
-            "YouTube": "https://www.youtube.com/",
-            "Rutube": "https://rutube.ru/video/",
-            "VK": "https://vk.com/",
-            "Odnoklassniki": "https://ok.ru/video/",
-            "Dzen": "https://dzen.ru/video/watch/",
-            "Vimeo": "https://vimeo.com/",
-            "Twitter": "https://twitter.com/user/status/",
-            "Instagram": "https://www.instagram.com/p/",
-            "TikTok": "https://www.tiktok.com/@user/video/"
-        }
-        
-        if platform != "Автоопределение" and platform in example_urls:
-            self.insert_url_example(example_urls[platform])
+        # Теперь просто логируем выбор платформы, но не меняем URL
+        self.log_message(f"[INFO] Выбрана платформа: {platform}")
     
     def browse_folder(self):
         folder_selected = filedialog.askdirectory(initialdir=self.folder_var.get())
@@ -286,10 +280,15 @@ class UniversalDownloaderApp:
         
         1. Выберите платформу или оставьте "Автоопределение"
         2. Вставьте ссылку на видео или плейлист
+           - Можно вставить вручную
+           - Или использовать кнопку "Вставить ссылку" для вставки из буфера обмена
         3. Выберите качество видео (по умолчанию 720p)
         4. При необходимости установите ограничение скорости
         5. Выберите папку для сохранения файлов
         6. Нажмите "Начать скачивание"
+        
+        Поддерживаемые платформы: YouTube, Rutube, VK, Odnoklassniki, 
+        Dzen, Vimeo, Twitter, Instagram, TikTok и многие другие!
         
         Все зависимости устанавливаются автоматически!
         """
@@ -327,6 +326,7 @@ class UniversalDownloaderApp:
         
         self.log_message("\n" + "="*80)
         self.log_message(f"Начало скачивания: {content_url}")
+        self.log_message(f"Платформа: {self.platform_var.get()}")
         self.log_message(f"Качество: {'Авто' if self.quality_var.get() == 'Авто' else self.quality_var.get()}")
         self.log_message(f"Папка сохранения: {output_folder}")
         self.log_message(f"Ограничение скорости: {self.speed_var.get()}")
@@ -366,6 +366,13 @@ class UniversalDownloaderApp:
                                 'quiet': False,
                                 'no_warnings': False,
                             }
+                            
+                            # Добавляем специфичные настройки для выбранной платформы
+                            platform = self.platform_var.get()
+                            if platform != "Автоопределение":
+                                # Для некоторых платформ могут потребоваться специальные настройки
+                                if platform == "Instagram":
+                                    ydl_opts['cookiefile'] = os.path.join(self.temp_dir, 'cookies.txt')
                             
                             quality = self.quality_var.get().split()[0] if self.quality_var.get() != "Авто" else "best"
                             if quality != "best":
