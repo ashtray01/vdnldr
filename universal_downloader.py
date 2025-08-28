@@ -22,7 +22,7 @@ class UniversalDownloaderApp:
             
         self.root = root
         self.root.title("Universal Video Downloader")
-        self.root.geometry("700x500")
+        self.root.geometry("700x550")  # Немного увеличил высоту
         self.root.resizable(False, True)
         
         # Обработчик закрытия окна
@@ -80,16 +80,24 @@ class UniversalDownloaderApp:
                                     width=15, state="readonly")
         quality_combo.grid(row=0, column=1, sticky=tk.W)
         
-        # Скорость загрузки
+        # Скорость загрузки - ИСПРАВЛЕНО: 5M вместо 5W
         ttk.Label(settings_frame, text="Ограничение скорости:").grid(row=0, column=2, sticky=tk.W, padx=(20, 10))
-        self.speed_var = tk.StringVar(value="5M")
+        self.speed_var = tk.StringVar(value="5M")  # ИСПРАВЛЕНО ЗДЕСЬ
         speed_combo = ttk.Combobox(settings_frame, textvariable=self.speed_var, 
-                                  values=["Без ограничений", "10M", "5M", "2M", "1M"], 
+                                  values=["Без ограничений", "10M", "5M", "2M", "1M", "500K"],  # Добавил 500K
                                   width=15, state="readonly")
         speed_combo.grid(row=0, column=3, sticky=tk.W)
         
+        # Формат загрузки
+        ttk.Label(settings_frame, text="Формат:").grid(row=1, column=0, sticky=tk.W, padx=(0, 10), pady=(10, 0))
+        self.format_var = tk.StringVar(value="mp4")
+        format_combo = ttk.Combobox(settings_frame, textvariable=self.format_var, 
+                                   values=["mp4", "mkv", "webm", "best", "worst"], 
+                                   width=15, state="readonly")
+        format_combo.grid(row=1, column=1, sticky=tk.W, pady=(10, 0))
+        
         # Выбор папки
-        ttk.Label(main_frame, text="Папка для сохранения:").grid(row=5, column=0, sticky=tk.W, pady=(0, 5))
+        ttk.Label(main_frame, text="Папка для сохранения:").grid(row=5, column=0, sticky=tk.W, pady=(10, 5))
         self.folder_var = tk.StringVar(value=os.path.join(os.path.expanduser("~"), "Downloads"))
         folder_frame = ttk.Frame(main_frame)
         folder_frame.grid(row=6, column=0, columnspan=2, sticky=tk.EW)
@@ -208,6 +216,11 @@ class UniversalDownloaderApp:
             import yt_dlp
             self.log_message("[OK] yt-dlp доступен через Python")
             self.use_python_module = True
+            
+            # Проверяем версию
+            version = yt_dlp.version.__version__
+            self.log_message(f"[INFO] Версия yt-dlp: {version}")
+            
         except ImportError:
             self.log_message("[ERROR] yt-dlp не найден!")
             self.use_python_module = False
@@ -251,7 +264,6 @@ class UniversalDownloaderApp:
     def on_platform_change(self, event):
         """Обработчик изменения выбранной платформы"""
         platform = self.platform_var.get()
-        # Теперь просто логируем выбор платформы, но не меняем URL
         self.log_message(f"[INFO] Выбрана платформа: {platform}")
     
     def browse_folder(self):
@@ -330,6 +342,7 @@ class UniversalDownloaderApp:
         self.log_message(f"Качество: {'Авто' if self.quality_var.get() == 'Авто' else self.quality_var.get()}")
         self.log_message(f"Папка сохранения: {output_folder}")
         self.log_message(f"Ограничение скорости: {self.speed_var.get()}")
+        self.log_message(f"Формат: {self.format_var.get()}")
         self.log_message(f"Формат имени: {self.name_format_var.get()}")
         self.log_message("="*80 + "\n")
         
@@ -357,7 +370,6 @@ class UniversalDownloaderApp:
                         with contextlib.redirect_stderr(output_capture):
                             ydl_opts = {
                                 'outtmpl': os.path.join(self.folder_var.get(), self.name_format_var.get()),
-                                'merge_output_format': 'mp4',
                                 'ignoreerrors': True,
                                 'retries': 10,
                                 'fragment_retries': 10,
@@ -365,19 +377,20 @@ class UniversalDownloaderApp:
                                 'sleep_interval': 5,
                                 'quiet': False,
                                 'no_warnings': False,
+                                'progress_hooks': [self.progress_hook],
                             }
                             
-                            # Добавляем специфичные настройки для выбранной платформы
-                            platform = self.platform_var.get()
-                            if platform != "Автоопределение":
-                                # Для некоторых платформ могут потребоваться специальные настройки
-                                if platform == "Instagram":
-                                    ydl_opts['cookiefile'] = os.path.join(self.temp_dir, 'cookies.txt')
+                            # Настройка формата
+                            if self.format_var.get() != 'best':
+                                ydl_opts['merge_output_format'] = self.format_var.get()
+                                ydl_opts['format'] = f'bestvideo[ext={self.format_var.get()}]+bestaudio[ext=m4a]/best'
                             
+                            # Настройка качества
                             quality = self.quality_var.get().split()[0] if self.quality_var.get() != "Авто" else "best"
                             if quality != "best":
-                                ydl_opts['format'] = f'best[height<={quality}]'
+                                ydl_opts['format'] = f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]'
                             
+                            # Настройка скорости
                             speed_limit = self.speed_var.get()
                             if speed_limit != "Без ограничений":
                                 if 'M' in speed_limit:
@@ -388,6 +401,7 @@ class UniversalDownloaderApp:
                                     rate_limit = int(speed_limit)
                                 ydl_opts['ratelimit'] = rate_limit
                             
+                            # Для плейлистов
                             if any(x in content_url for x in ["/playlist/", "/plst/", "list="]):
                                 ydl_opts['outtmpl'] = os.path.join(
                                     self.folder_var.get(), 
@@ -400,6 +414,8 @@ class UniversalDownloaderApp:
                                 
                 except Exception as e:
                     output_capture.write(f"\n[ERROR] Критическая ошибка: {str(e)}\n")
+                    import traceback
+                    output_capture.write(f"Трассировка: {traceback.format_exc()}\n")
                 finally:
                     if not self.is_closing:
                         self.root.after(0, self.download_complete)
@@ -407,7 +423,8 @@ class UniversalDownloaderApp:
             download_thread = threading.Thread(target=download_with_redirect, daemon=True)
             download_thread.start()
             
-            while self.is_downloading and not self.is_closing:
+            # Мониторим вывод в реальном времени
+            while self.is_downloading and not self.is_closing and download_thread.is_alive():
                 try:
                     output = output_capture.getvalue()
                     if output:
@@ -420,15 +437,22 @@ class UniversalDownloaderApp:
                 except Exception as e:
                     self.log_message(f"[ERROR] Ошибка чтения вывода: {str(e)}")
                 
-                if download_thread.is_alive():
-                    threading.Event().wait(0.1)
-                else:
-                    break
+                threading.Event().wait(0.5)
                     
         except Exception as e:
             if not self.is_closing:
                 self.log_message(f"[ERROR] Ошибка запуска: {str(e)}")
                 self.root.after(0, self.download_complete)
+
+    def progress_hook(self, d):
+        """Хук для отслеживания прогресса загрузки"""
+        if d['status'] == 'downloading':
+            percent = d.get('_percent_str', 'N/A')
+            speed = d.get('_speed_str', 'N/A')
+            eta = d.get('_eta_str', 'N/A')
+            self.status_var.set(f"Загрузка: {percent} | Скорость: {speed} | Осталось: {eta}")
+        elif d['status'] == 'finished':
+            self.status_var.set("Загрузка завершена! Конвертация...")
 
     def stop_download(self):
         if self.is_downloading:
@@ -441,6 +465,7 @@ class UniversalDownloaderApp:
         self.is_downloading = False
         self.download_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
+        self.status_var.set("Завершено")
 
 if __name__ == "__main__":
     root = tk.Tk()
