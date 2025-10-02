@@ -1,4 +1,4 @@
-## fork from Ronin
+## fork from [Ronin](https://github.com/RoninOnis)
 ### some new features
 - dark theme
 - minimal interface
